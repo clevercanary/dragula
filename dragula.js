@@ -25,6 +25,7 @@ function dragula (initialContainers, options) {
   var _renderTimer; // timer for setTimeout renderMirrorImage
   var _lastDropTarget = null; // last container item was over
   var _grabbed; // holds mousedown context until first mousemove
+  var _previousY;
 
   var o = options || {};
   if (o.moves === void 0) { o.moves = always; }
@@ -39,6 +40,9 @@ function dragula (initialContainers, options) {
   if (o.direction === void 0) { o.direction = 'vertical'; }
   if (o.ignoreInputTextSelection === void 0) { o.ignoreInputTextSelection = true; }
   if (o.mirrorContainer === void 0) { o.mirrorContainer = doc.body; }
+  if (o.scrollTriggerTop === void 0) { o.scrollTriggerTop = 200; }
+  if (o.scrollTriggerBottom === void 0) { o.scrollTriggerBottom = 200; }
+  if (o.scrollContainer === void 0) { o.containers[0]; }
 
   var drake = emitter({
     containers: o.containers,
@@ -47,7 +51,10 @@ function dragula (initialContainers, options) {
     cancel: cancel,
     remove: remove,
     destroy: destroy,
-    dragging: false
+    dragging: false,
+    scrollTriggerTop: o.scrollTriggerTop,
+    scrollTriggerBottom: o.scrollTriggerBottom,
+    scrollContainer: o.scrollContainer
   });
 
   if (o.removeOnSpill === true) {
@@ -66,6 +73,11 @@ function dragula (initialContainers, options) {
     var op = remove ? 'remove' : 'add';
     touchy(documentElement, op, 'mousedown', grab);
     touchy(documentElement, op, 'mouseup', release);
+    if (remove) {
+      document.removeEventListener('mousemove', onMouseMove);
+    } else {
+      document.addEventListener('mousemove', onMouseMove);
+    }
   }
 
   function eventualMovements (remove) {
@@ -477,6 +489,54 @@ function dragula (initialContainers, options) {
 
     function resolve (after) {
       return after ? nextEl(target) : target;
+    }
+  }
+
+  function onMouseMove (e) {
+    var y = getCoord('pageY', e);
+    var x = getCoord('pageX', e);
+    _previousY = y;
+
+    if (drake.dragging) {
+      for (var i = 0; i < drake.containers.length; i++) {
+        var container = drake.scrollContainer || drake.containers[i];
+
+        var topTriggerContainer = {
+          top: container.offsetTop,
+          right: container.offsetWidth + container.offsetLeft,
+          bottom: container.offsetTop + o.scrollTriggerTop,
+          left: container.offsetLeft
+        };
+
+        var bottomTriggerContainer = {
+          top: container.offsetTop + container.offsetHeight - o.scrollTriggerBottom,
+          right: container.offsetWidth + container.offsetLeft,
+          bottom: container.offsetTop + container.offsetHeight,
+          left: container.offsetLeft
+        };
+
+        if (y >= topTriggerContainer.top && y <= topTriggerContainer.bottom
+          && x >= topTriggerContainer.left && x <= topTriggerContainer.right) {
+          scrollUp(container, y);
+        } else if (y >= bottomTriggerContainer.top && y <= bottomTriggerContainer.bottom
+          && x >= bottomTriggerContainer.left && x <= bottomTriggerContainer.right) {
+          scrollDown(container, y);
+        }
+      }
+    }
+  }
+
+  function scrollDown (container, y) {
+    if (y === _previousY) {
+      container.scrollTop += 10;
+      setTimeout(scrollDown.bind(this, container, y), 15);
+    }
+  }
+
+  function scrollUp (container, y) {
+    if (y === _previousY) {
+      container.scrollTop -= 10;
+      setTimeout(scrollUp.bind(this, container, y), 15);
     }
   }
 
